@@ -1,0 +1,97 @@
+/*
+ * NES Controller to Arduino Interface
+ * 
+ * 
+  */
+
+//#define <String.h>
+
+// Pins
+const uint8_t clock_pin = 5;
+const uint8_t latch_pin = 6;
+const uint8_t data_pin = 7;
+
+//NES Controller Buttons
+const uint8_t button_A = 0;
+const uint8_t button_B = 1;
+const uint8_t button_select = 2;
+const uint8_t button_start = 3;
+const uint8_t button_up = 4;
+const uint8_t button_down = 5;
+const uint8_t button_left = 6;
+const uint8_t button_right = 7;
+
+const String buttons[] = {"A", "B", "select", "start", "up", "down", "left", "right"};
+
+static uint8_t last_pressed;
+static unsigned long time_last_button_change;
+static bool holding = false;
+
+//FUNCTIONs
+byte read_data_pin();
+
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(9600);
+
+  pinMode(data_pin, INPUT);
+  
+  pinMode(clock_pin, OUTPUT);
+  pinMode(latch_pin, OUTPUT);
+
+  digitalWrite(clock_pin, LOW);
+  digitalWrite(latch_pin, LOW);
+}
+
+void loop() {
+  int pressed = read_NES_controller();
+
+  if(pressed != last_pressed){
+    last_pressed = pressed;
+    time_last_button_change = millis();
+    holding = false;
+    
+    if(pressed != 8){
+      Serial.println(pressed);
+    }
+  }else if(millis() - time_last_button_change > 500){
+    if(pressed != 8 && holding == false){
+      Serial.print(pressed);
+      Serial.println("(HOLD)");
+      holding = true;
+    }
+  }
+
+}
+
+int read_NES_controller(void){
+  //Start with an empty byte
+  uint8_t button_pressed = 8;
+
+  // Ping the Latch to initiate data transfer
+  digitalWrite(latch_pin, HIGH);
+  digitalWrite(latch_pin, LOW);
+
+  // Read if "A" button was pressed
+  if(read_data_pin()) button_pressed = 0;
+
+  // Ping the clock pin and read if any other button was pressed
+  for(short int i = 1; i < 8; i++){
+    digitalWrite(clock_pin, HIGH);
+    digitalWrite(clock_pin, LOW);
+    if(read_data_pin()) button_pressed = i;
+  }
+  // This prevents last button (right) from printing (A) after it on next clock pin ping.
+  digitalWrite(clock_pin, HIGH);
+  digitalWrite(clock_pin, LOW);
+
+  return button_pressed;
+}
+
+byte read_data_pin(){
+  if(digitalRead(data_pin) == LOW){
+    delay(10);
+    if(digitalRead(data_pin) == LOW) return 1;
+  }
+  return 0;
+}
